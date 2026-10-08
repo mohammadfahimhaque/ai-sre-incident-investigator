@@ -2,9 +2,11 @@ import os
 
 from dotenv import load_dotenv
 from strands import Agent
+from strands.agent.conversation_manager import SlidingWindowConversationManager
 from strands.models import BedrockModel
 
 from src.agent.prompts import SYSTEM_PROMPT
+from src.tools.mcp import create_bronto_mcp_client
 from src.tools.telemetry import analyze_latency
 
 
@@ -24,12 +26,28 @@ def create_agent() -> Agent:
         region_name=region,
     )
 
+    bronto_mcp = create_bronto_mcp_client()
+
+    conversation_manager = SlidingWindowConversationManager(
+        window_size=8,
+        should_truncate_results=True,
+        per_turn=True,
+        proactive_compression={
+            "compression_threshold": 0.65,
+        },
+    )
+
     return Agent(
         model=model,
         system_prompt=SYSTEM_PROMPT,
-	tools=[analyze_latency],
+        tools=[
+            analyze_latency,
+            bronto_mcp,
+        ],
+        conversation_manager=conversation_manager,
         callback_handler=None,
     )
+
 
 def main() -> None:
     agent = create_agent()
@@ -46,8 +64,13 @@ def main() -> None:
         if not question:
             continue
 
-        response = agent(question)
-        print(f"\n{response}\n")
+        try:
+            response = agent(question)
+            print(f"\n{response}\n")
+        except KeyboardInterrupt:
+            print("\nInvestigation cancelled.\n")
+        except Exception as exc:
+            print(f"\nInvestigation failed: {exc}\n")
 
 
 if __name__ == "__main__":
