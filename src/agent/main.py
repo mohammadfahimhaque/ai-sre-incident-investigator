@@ -42,7 +42,7 @@ def create_agent() -> Agent:
         system_prompt=SYSTEM_PROMPT,
         tools=[
             analyze_latency,
-            bronto_mcp,
+            *([bronto_mcp] if bronto_mcp is not None else []),
         ],
         conversation_manager=conversation_manager,
         callback_handler=None,
